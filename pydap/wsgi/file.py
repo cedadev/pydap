@@ -83,6 +83,13 @@ class FileServer(object):
         dirs_ = []
         files_ = []
         for root, dirs, files in os.walk(directory):
+            # Path to make listing process more efficient by avoiding
+            # recursive walk through entire directory tree
+            #
+            # P J Kershaw 17/11/14
+            if root != directory:
+                break
+
             filepaths = [ 
                     os.path.abspath(os.path.join(root, filename))
                     for filename in files ]

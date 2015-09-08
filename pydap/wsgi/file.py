@@ -56,12 +56,15 @@ class FileServer(object):
         if os.path.exists(filepath):
             # check that it is viewable according to the custom filter
             filename = os.path.split(filepath.rstrip(os.path.sep))[1]
-            if self.file_filter is not None and self.file_filter.match(filename):
+            if self.is_filtered(filename):
                 return HTTPNotFound()(environ, start_response)
 
             elif os.path.isfile(filepath):
                 return FileApp(filepath)(environ, start_response)
             else:
+                # don't list directories beginning with a .
+                if filename.startswith('.'):
+                    return HTTPNotFound()(environ, start_response)
                 # return directory listing
                 if not path_info.endswith('/'):
                     environ['PATH_INFO'] = path_info + '/'
@@ -101,13 +104,10 @@ class FileServer(object):
             if root != directory:
                 break
             
-            # Apply custom filter.
-            if self.file_filter is not None:
-                filtered_files = [filename for filename in files
-                         if not self.file_filter.match(filename)]
-            else:
-                filtered_files = files
-                
+            # Apply custom filter to files.
+            filtered_files = [filename for filename in files
+                     if not self.is_filtered(filename)]
+            
             filepaths = [ 
                     os.path.abspath(os.path.join(root, filename))
                     for filename in filtered_files ]
@@ -117,7 +117,9 @@ class FileServer(object):
                 mtime = max(mtime, *map(getmtime, filepaths))
 
             # Add list of files and directories.
-            dirs_ = [d for d in dirs if not d.startswith('.')]
+            # Apply custom filter to directories and always hide directories beginning with .
+            dirs_ = [d for d in dirs
+                     if not self.is_filtered(d) and not d.startswith('.')]
             files_ = [{
                     'name': os.path.split(filepath)[1],
                     'size': format_size(getsize(filepath)),
@@ -149,6 +151,18 @@ class FileServer(object):
         headers = [('Content-type', content_type), ('Last-modified', last_modified)]
         start_response("200 OK", headers)
         return [output.encode('utf-8')]
+    
+    def is_filtered(self, filename):
+        '''
+        Checks whether the file has been filtered out according to the custom filter.
+        '''
+        filtered = False
+        
+        if self.file_filter is not None:
+            if self.file_filter.match(filename):
+                filtered = True
+                
+        return filtered
 
 
 def supported(filepath, handlers):

@@ -54,14 +54,13 @@ class FileServer(object):
 
         # check for regular file or dir request
         if os.path.exists(filepath):
-            if os.path.isfile(filepath):
-                # check that it is viewable according to the custom filter
-                filename = os.path.split(filepath)[1]
-                if self.file_filter.match(filename):
-                    return HTTPNotFound()(environ, start_response)
-                # return file download
-                else:
-                    return FileApp(filepath)(environ, start_response)
+            # check that it is viewable according to the custom filter
+            filename = os.path.split(filepath.rstrip(os.path.sep))[1]
+            if self.file_filter is not None and self.file_filter.match(filename):
+                return HTTPNotFound()(environ, start_response)
+
+            elif os.path.isfile(filepath):
+                return FileApp(filepath)(environ, start_response)
             else:
                 # return directory listing
                 if not path_info.endswith('/'):

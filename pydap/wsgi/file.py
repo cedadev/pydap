@@ -57,7 +57,7 @@ class FileServer(object):
             if os.path.isfile(filepath):
                 # check that it is viewable according to the custom filter
                 filename = os.path.split(filepath)[1]
-                if file_filter.match(filename):
+                if self.file_filter.match(filename):
                     return HTTPNotFound()(environ, start_response)
                 # return file download
                 else:

@@ -23,9 +23,16 @@ from pydap.util.template import FileLoader, GenshiRenderer
 
 
 class FileServer(object):
-    def __init__(self, root, templates='templates', catalog='catalog.xml', **config):
+    def __init__(self, root, templates='templates', catalog='catalog.xml',
+                 file_filter_regex=None, **config):
         self.root = root.replace('/', os.path.sep)
         self.catalog = catalog
+        
+        if file_filter_regex is not None:
+            self.file_filter = re.compile(file_filter_regex)
+        else:
+            self.file_filter = None
+        
         self.config = config
 
         loader = FileLoader(templates)
@@ -45,8 +52,6 @@ class FileServer(object):
         # try to set our renderer as the default, it none exists
         environ.setdefault('pydap.renderer', self.renderer) 
 
-        file_filter = re.compile(self.config['file_filter_regex'])
-        
         # check for regular file or dir request
         if os.path.exists(filepath):
             if os.path.isfile(filepath):
@@ -63,7 +68,7 @@ class FileServer(object):
                     environ['PATH_INFO'] = path_info + '/'
                     return HTTPSeeOther(construct_url(environ))(environ, start_response)
                 return self.index(environ, start_response,
-                        'index.html', 'text/html', file_filter)
+                        'index.html', 'text/html')
         # else check for opendap request
         elif os.path.exists(basename):
             # Update environ with configuration keys (environ wins in case of conflict).
@@ -75,11 +80,11 @@ class FileServer(object):
         elif path_info.endswith('/%s' % self.catalog):
             environ['PATH_INFO'] = path_info[:path_info.rfind('/')]
             return self.index(environ, start_response,
-                    'catalog.xml', 'text/xml', file_filter)
+                    'catalog.xml', 'text/xml')
         else:
             return HTTPNotFound()(environ, start_response)
 
-    def index(self, environ, start_response, template_name, content_type, file_filter = None):
+    def index(self, environ, start_response, template_name, content_type):
         # Return directory listing.
         path_info = environ.get('PATH_INFO', '')
         directory = os.path.abspath(os.path.normpath(os.path.join(
@@ -98,30 +103,28 @@ class FileServer(object):
                 break
             
             # Apply custom filter.
-            if file_filter:
-                filtered_files = []
-                for filename in files:
-                    if not file_filter.match(filename):
-                        filtered_files.append(filename)
-                files = filtered_files
-            
+            if self.file_filter is not None:
+                filtered_files = [filename for filename in files
+                         if not self.file_filter.match(filename)]
+            else:
+                filtered_files = files
+                
             filepaths = [ 
                     os.path.abspath(os.path.join(root, filename))
-                    for filename in files ]
+                    for filename in filtered_files ]
             # Get Last-modified.
             filepaths = filter(os.path.exists, filepaths)  # remove broken symlinks
             if filepaths:
                 mtime = max(mtime, *map(getmtime, filepaths))
 
             # Add list of files and directories.
-            if root == directory:
-                dirs_ = [d for d in dirs if not d.startswith('.')]
-                files_ = [{
-                        'name': os.path.split(filepath)[1],
-                        'size': format_size(getsize(filepath)),
-                        'modified': time.localtime(getmtime(filepath)),
-                        'supported': supported(filepath, self.handlers),
-                        } for filepath in filepaths]
+            dirs_ = [d for d in dirs if not d.startswith('.')]
+            files_ = [{
+                    'name': os.path.split(filepath)[1],
+                    'size': format_size(getsize(filepath)),
+                    'modified': time.localtime(getmtime(filepath)),
+                    'supported': supported(filepath, self.handlers),
+                    } for filepath in filepaths]
 
         # Sort naturally using Ned Batchelder's algorithm.
         dirs_.sort(key=alphanum_key)

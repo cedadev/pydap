@@ -45,18 +45,25 @@ class FileServer(object):
         # try to set our renderer as the default, it none exists
         environ.setdefault('pydap.renderer', self.renderer) 
 
+        file_filter = re.compile(self.config['file_filter_regex'])
+        
         # check for regular file or dir request
         if os.path.exists(filepath):
             if os.path.isfile(filepath):
+                # check that it is viewable according to the custom filter
+                filename = os.path.split(filepath)[1]
+                if file_filter.match(filename):
+                    return HTTPNotFound()(environ, start_response)
                 # return file download
-                return FileApp(filepath)(environ, start_response)
+                else:
+                    return FileApp(filepath)(environ, start_response)
             else:
                 # return directory listing
                 if not path_info.endswith('/'):
                     environ['PATH_INFO'] = path_info + '/'
                     return HTTPSeeOther(construct_url(environ))(environ, start_response)
                 return self.index(environ, start_response,
-                        'index.html', 'text/html')
+                        'index.html', 'text/html', file_filter)
         # else check for opendap request
         elif os.path.exists(basename):
             # Update environ with configuration keys (environ wins in case of conflict).
@@ -68,11 +75,11 @@ class FileServer(object):
         elif path_info.endswith('/%s' % self.catalog):
             environ['PATH_INFO'] = path_info[:path_info.rfind('/')]
             return self.index(environ, start_response,
-                    'catalog.xml', 'text/xml')
+                    'catalog.xml', 'text/xml', file_filter)
         else:
             return HTTPNotFound()(environ, start_response)
 
-    def index(self, environ, start_response, template_name, content_type):
+    def index(self, environ, start_response, template_name, content_type, file_filter = None):
         # Return directory listing.
         path_info = environ.get('PATH_INFO', '')
         directory = os.path.abspath(os.path.normpath(os.path.join(
@@ -89,7 +96,15 @@ class FileServer(object):
             # P J Kershaw 17/11/14
             if root != directory:
                 break
-
+            
+            # Apply custom filter.
+            if file_filter:
+                filtered_files = []
+                for filename in files:
+                    if not file_filter.match(filename):
+                        filtered_files.append(filename)
+                files = filtered_files
+            
             filepaths = [ 
                     os.path.abspath(os.path.join(root, filename))
                     for filename in files ]

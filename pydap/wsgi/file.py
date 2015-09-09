@@ -54,16 +54,21 @@ class FileServer(object):
 
         # check for regular file or dir request
         if os.path.exists(filepath):
-            # check that it is viewable according to the custom filter
-            filename = os.path.split(filepath.rstrip(os.path.sep))[1]
-            if self.is_filtered(filename):
-                return HTTPNotFound()(environ, start_response)
-
-            elif os.path.isfile(filepath):
+            relative_filepath = os.path.relpath(filepath, self.root)
+            if relative_filepath == '.':
+                relative_filepath = ''
+            
+            # it is a file
+            if os.path.isfile(filepath):
+                # check that it is viewable according to the custom filter
+                if self.is_filtered(relative_filepath):
+                    return HTTPNotFound()(environ, start_response)
                 return FileApp(filepath)(environ, start_response)
+            # it is a directory
             else:
+                # check that it is viewable according to the custom filter
                 # don't list directories beginning with a .
-                if filename.startswith('.'):
+                if self.is_filtered(relative_filepath, True):
                     return HTTPNotFound()(environ, start_response)
                 # return directory listing
                 if not path_info.endswith('/'):
@@ -119,7 +124,7 @@ class FileServer(object):
             # Add list of files and directories.
             # Apply custom filter to directories and always hide directories beginning with .
             dirs_ = [d for d in dirs
-                     if not self.is_filtered(d) and not d.startswith('.')]
+                     if not self.is_filtered(d, True)]
             files_ = [{
                     'name': os.path.split(filepath)[1],
                     'size': format_size(getsize(filepath)),
@@ -152,16 +157,24 @@ class FileServer(object):
         start_response("200 OK", headers)
         return [output.encode('utf-8')]
     
-    def is_filtered(self, filename):
+    def is_filtered(self, relative_filepath, is_directory=False):
         '''
         Checks whether the file has been filtered out according to the custom filter.
         '''
         filtered = False
+        filenames = relative_filepath.split(os.path.sep)
         
-        if self.file_filter is not None:
-            if self.file_filter.match(filename):
-                filtered = True
-                
+        for filename in filenames:
+            if self.file_filter is not None:
+                if self.file_filter.match(filename):
+                    filtered = True
+                    break
+            
+            if is_directory or filename != filenames[-1]:
+                if filename.startswith('.'):
+                    filtered = True
+                    break
+        
         return filtered
 
 

@@ -60,8 +60,11 @@ class FileServer(object):
             
             # it is a file
             if os.path.isfile(filepath):
+                # always serve if the file is in the static directory
+                if relative_filepath.startswith('{0}{1}'.format('.static',os.path.sep)):
+                    pass
                 # check that it is viewable according to the custom filter
-                if self.is_filtered(relative_filepath):
+                elif self.is_filtered(relative_filepath):
                     return HTTPNotFound()(environ, start_response)
                 return FileApp(filepath)(environ, start_response)
             # it is a directory

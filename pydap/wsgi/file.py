@@ -19,7 +19,7 @@ from paste.fileapp import FileApp
 from pydap.handlers.lib import get_handler, load_handlers
 from pydap.lib import __version__
 from pydap.exceptions import ExtensionNotSupportedError
-from pydap.util.template import FileLoader, GenshiRenderer
+from pydap.util.template import FileLoader, GenshiRenderer, Jinja2Renderer
 
 
 class FileServer(object):

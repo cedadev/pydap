@@ -1,7 +1,7 @@
 # http://svn.pythonpaste.org/Paste/TemplateProposal/
 
 import os
-
+import jinja2
 
 class TemplateNotFound(Exception):
     pass
@@ -77,6 +77,30 @@ class GenshiRenderer(object):
         from genshi.template import MarkupTemplate
         f = template_object.open()
         template_object.native = MarkupTemplate(f)
+
+
+class Jinja2Renderer(object):
+    name = 'jinja2'
+    output_types = []
+
+    def __init__(self, options, loader):
+        self.options = options
+        self.loader = loader
+        
+        self.templateLoader = jinja2.FileSystemLoader( searchpath='/' )
+        self.templateEnv = jinja2.Environment( loader=self.templateLoader )
+
+    def render(self, template_object, variables,
+               fragment=False, output_format=None,
+               output_type='unicode'):
+        if output_type != 'unicode':
+            raise ValueError(
+                "Bad output_type: %r" % output_type)
+        template_object = self.compile(template_object)
+        return template_object.render( **variables )
+
+    def compile(self, template_object):
+        return self.templateEnv.get_template( template_object.filename )
 
 
 class FileSource(object):

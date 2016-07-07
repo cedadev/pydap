@@ -23,13 +23,12 @@ from pydap.util.template import FileLoader, GenshiRenderer
 
 
 class FileServer(object):
-    def __init__(self, root, templates='templates', catalog='catalog.xml',
-                 file_filter_regex=None, **config):
+    def __init__(self, root, templates='templates', catalog='catalog.xml', **config):
         self.root = root.replace('/', os.path.sep)
         self.catalog = catalog
         
-        if file_filter_regex is not None:
-            self.file_filter = re.compile(file_filter_regex)
+        if 'file_filter_regex' in config:
+            self.file_filter = re.compile(config['file_filter_regex'])
         else:
             self.file_filter = None
         
@@ -61,7 +60,7 @@ class FileServer(object):
             # it is a file
             if os.path.isfile(filepath):
                 # always serve if the file is in the static directory
-                if relative_filepath.startswith('{0}{1}'.format('.static',os.path.sep)):
+                if relative_filepath.startswith('.static' + os.path.sep):
                     pass
                 # check that it is viewable according to the custom filter
                 elif self.is_filtered(relative_filepath):

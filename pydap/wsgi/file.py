@@ -168,7 +168,7 @@ class FileServer(object):
         
         for filename in filenames:
             if self.file_filter is not None:
-                if self.file_filter.match(filename):
+                if self.file_filter.search(filename):
                     filtered = True
                     break
             

@@ -63,14 +63,14 @@ class FileServer(object):
                 if relative_filepath.startswith('.static' + os.path.sep):
                     pass
                 # check that it is viewable according to the custom filter
-                elif self.is_filtered(relative_filepath):
+                elif self._is_filtered(relative_filepath):
                     return HTTPNotFound()(environ, start_response)
                 return FileApp(filepath)(environ, start_response)
             # it is a directory
             else:
                 # check that it is viewable according to the custom filter
                 # don't list directories beginning with a .
-                if self.is_filtered(relative_filepath, True):
+                if self._is_filtered(relative_filepath, True):
                     return HTTPNotFound()(environ, start_response)
                 # return directory listing
                 if not path_info.endswith('/'):
@@ -93,6 +93,26 @@ class FileServer(object):
         else:
             return HTTPNotFound()(environ, start_response)
 
+    def _is_filtered(self, relative_filepath, is_directory=False):
+        '''
+        Checks whether the file has been filtered out according to the custom filter.
+        '''
+        filtered = False
+        filenames = relative_filepath.split(os.path.sep)
+        
+        for filename in filenames:
+            if self.file_filter is not None:
+                if self.file_filter.search(filename):
+                    filtered = True
+                    break
+            
+            if is_directory or filename != filenames[-1]:
+                if filename.startswith('.'):
+                    filtered = True
+                    break
+        
+        return filtered
+
     def index(self, environ, start_response, template_name, content_type):
         # Return directory listing.
         path_info = environ.get('PATH_INFO', '')
@@ -113,7 +133,7 @@ class FileServer(object):
             
             # Apply custom filter to files.
             filtered_files = [filename for filename in files
-                     if not self.is_filtered(filename)]
+                     if not self._is_filtered(filename)]
             
             filepaths = [ 
                     os.path.abspath(os.path.join(root, filename))
@@ -126,7 +146,7 @@ class FileServer(object):
             # Add list of files and directories.
             # Apply custom filter to directories and always hide directories beginning with .
             dirs_ = [d for d in dirs
-                     if not self.is_filtered(d, True)]
+                     if not self._is_filtered(d, True)]
             files_ = [{
                     'name': os.path.split(filepath)[1],
                     'size': format_size(getsize(filepath)),
@@ -149,6 +169,7 @@ class FileServer(object):
                 'title': 'Index of %s' % (environ.get('PATH_INFO') or '/'),
                 'dirs' : dirs_,
                 'files': files_,
+                'directory': directory,
                 'catalog': self.catalog,
                 'version': '.'.join(str(d) for d in __version__)
         }
@@ -158,26 +179,6 @@ class FileServer(object):
         headers = [('Content-type', content_type), ('Last-modified', last_modified)]
         start_response("200 OK", headers)
         return [output.encode('utf-8')]
-    
-    def is_filtered(self, relative_filepath, is_directory=False):
-        '''
-        Checks whether the file has been filtered out according to the custom filter.
-        '''
-        filtered = False
-        filenames = relative_filepath.split(os.path.sep)
-        
-        for filename in filenames:
-            if self.file_filter is not None:
-                if self.file_filter.search(filename):
-                    filtered = True
-                    break
-            
-            if is_directory or filename != filenames[-1]:
-                if filename.startswith('.'):
-                    filtered = True
-                    break
-        
-        return filtered
 
 
 def supported(filepath, handlers):

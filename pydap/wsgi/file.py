@@ -26,11 +26,10 @@ class FileServer(object):
     def __init__(self, root, templates='templates', catalog='catalog.xml', **config):
         self.root = root.replace('/', os.path.sep)
         self.catalog = catalog
-        
+
+        self.file_filter = None
         if 'file_filter_regex' in config:
             self.file_filter = re.compile(config['file_filter_regex'])
-        else:
-            self.file_filter = None
         
         self.config = config
 
@@ -53,24 +52,21 @@ class FileServer(object):
 
         # check for regular file or dir request
         if os.path.exists(filepath):
-            relative_filepath = os.path.relpath(filepath, self.root)
-            if relative_filepath == '.':
-                relative_filepath = ''
-            
             # it is a file
             if os.path.isfile(filepath):
                 # always serve if the file is in the static directory
+                relative_filepath = os.path.relpath(filepath, self.root)
                 if relative_filepath.startswith('.static' + os.path.sep):
                     pass
                 # check that it is viewable according to the custom filter
-                elif self._is_filtered(relative_filepath):
+                elif self._is_restricted(filepath):
                     return HTTPNotFound()(environ, start_response)
                 return FileApp(filepath)(environ, start_response)
             # it is a directory
             else:
                 # check that it is viewable according to the custom filter
                 # don't list directories beginning with a .
-                if self._is_filtered(relative_filepath, True):
+                if self._is_restricted(filepath):
                     return HTTPNotFound()(environ, start_response)
                 # return directory listing
                 if not path_info.endswith('/'):
@@ -93,25 +89,46 @@ class FileServer(object):
         else:
             return HTTPNotFound()(environ, start_response)
 
-    def _is_filtered(self, relative_filepath, is_directory=False):
+    def _match_filter(self, filename):
         '''
-        Checks whether the file has been filtered out according to the custom filter.
+        Checks a file or directory name against a provided regex
         '''
-        filtered = False
+        if self.file_filter is not None:
+            if self.file_filter.search(filename):
+                return True
+            else:
+                return False
+
+    def _is_restricted(self, filepath):
+        '''
+        Method to determine whether or not a file or directory
+        should be served based on its full path
+        '''
+        restricted = False
+        
+        relative_filepath = os.path.relpath(filepath, self.root)
+        if relative_filepath == '.':
+            relative_filepath = ''
+        
+        # Check that any part of the patch matches the filter
         filenames = relative_filepath.split(os.path.sep)
-        
         for filename in filenames:
-            if self.file_filter is not None:
-                if self.file_filter.search(filename):
-                    filtered = True
-                    break
-            
-            if is_directory or filename != filenames[-1]:
-                if filename.startswith('.'):
-                    filtered = True
-                    break
+            if self._match_filter(filename):
+                restricted = True
         
-        return filtered
+        return restricted
+
+    def _is_hidden(self, filepath):
+        '''
+        Method to determine whether a file or directory
+        should show up in the file listing
+        '''
+        relative_filepath = os.path.relpath(filepath, self.root)
+        if relative_filepath == '.':
+            relative_filepath = ''
+        filename = os.path.split(relative_filepath)[1]
+        
+        return self._match_filter(filename)
 
     def index(self, environ, start_response, template_name, content_type):
         # Return directory listing.
@@ -131,13 +148,13 @@ class FileServer(object):
             if root != directory:
                 break
             
-            # Apply custom filter to files.
-            filtered_files = [filename for filename in files
-                     if not self._is_filtered(filename)]
+            filepaths = []
+            for filename in files:
+                filepath = os.path.abspath(os.path.join(root, filename))
+                # Apply custom filter
+                if not self._is_hidden(filepath):
+                    filepaths.append(filepath)
             
-            filepaths = [ 
-                    os.path.abspath(os.path.join(root, filename))
-                    for filename in filtered_files ]
             # Get Last-modified.
             filepaths = filter(os.path.exists, filepaths)  # remove broken symlinks
             if filepaths:
@@ -146,7 +163,7 @@ class FileServer(object):
             # Add list of files and directories.
             # Apply custom filter to directories and always hide directories beginning with .
             dirs_ = [d for d in dirs
-                     if not self._is_filtered(d, True)]
+                     if not self._is_hidden(os.path.abspath(os.path.join(root, d)))]
             files_ = [{
                     'name': os.path.split(filepath)[1],
                     'size': format_size(getsize(filepath)),

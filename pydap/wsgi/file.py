@@ -104,12 +104,13 @@ class FileServer(object):
         '''
         restricted = False
         
+        # Eliminate the server root from the path
         relative_filepath = os.path.relpath(filepath, self.root)
         if relative_filepath == '.':
             relative_filepath = ''
         
         if deep_match:
-            # Check that any part of the patch matches the filter
+            # Check that any part of the path matches the filter
             filenames = relative_filepath.split(os.path.sep)
             for filename in filenames:
                 if self._match_filter(filename):

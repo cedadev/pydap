@@ -27,10 +27,18 @@ class FileServer(object):
         self.root = root.replace('/', os.path.sep)
         self.catalog = catalog
 
-        self.file_filter = None
-        if 'file_filter_regex' in config:
-            self.file_filter = re.compile(config['file_filter_regex'])
-        
+        # Regex for filtering out files and directories
+        file_filter_regex = config.get('file_filter_regex')
+        if file_filter_regex:
+            self.file_filter = re.compile(file_filter_regex)
+
+        # Boolean option to determines whether a hidden file or directory is served
+        # Defaults to serve all, regardless of filter
+        self.filter_restrict = config.get('restrict_with_filter', False)
+        false_strings = {'False', 'false', '0'}
+        if self.filter_restrict in false_strings:
+            self.filter_restrict = False
+
         self.config = config
 
         loader = FileLoader(templates)
@@ -59,14 +67,14 @@ class FileServer(object):
                 if relative_filepath.startswith('.static' + os.path.sep):
                     pass
                 # check that it is viewable according to the custom filter
-                elif self._is_restricted(filepath):
+                elif self.filter_restrict and self._is_hidden(filepath, True):
                     return HTTPNotFound()(environ, start_response)
                 return FileApp(filepath)(environ, start_response)
             # it is a directory
             else:
                 # check that it is viewable according to the custom filter
                 # don't list directories beginning with a .
-                if self._is_restricted(filepath):
+                if self.filter_restrict and self._is_hidden(filepath, True):
                     return HTTPNotFound()(environ, start_response)
                 # return directory listing
                 if not path_info.endswith('/'):
@@ -89,17 +97,7 @@ class FileServer(object):
         else:
             return HTTPNotFound()(environ, start_response)
 
-    def _match_filter(self, filename):
-        '''
-        Checks a file or directory name against a provided regex
-        '''
-        if self.file_filter is not None:
-            if self.file_filter.search(filename):
-                return True
-            else:
-                return False
-
-    def _is_restricted(self, filepath):
+    def _is_hidden(self, filepath, deep_match=False):
         '''
         Method to determine whether or not a file or directory
         should be served based on its full path
@@ -110,25 +108,28 @@ class FileServer(object):
         if relative_filepath == '.':
             relative_filepath = ''
         
-        # Check that any part of the patch matches the filter
-        filenames = relative_filepath.split(os.path.sep)
-        for filename in filenames:
-            if self._match_filter(filename):
-                restricted = True
+        if deep_match:
+            # Check that any part of the patch matches the filter
+            filenames = relative_filepath.split(os.path.sep)
+            for filename in filenames:
+                if self._match_filter(filename):
+                    restricted = True
+        else:
+            # Check that the filename matches filter
+            filename = os.path.split(relative_filepath)[1]
+            restricted = self._match_filter(filename)
         
         return restricted
 
-    def _is_hidden(self, filepath):
+    def _match_filter(self, filename):
         '''
-        Method to determine whether a file or directory
-        should show up in the file listing
+        Checks a file or directory name against a provided regex
         '''
-        relative_filepath = os.path.relpath(filepath, self.root)
-        if relative_filepath == '.':
-            relative_filepath = ''
-        filename = os.path.split(relative_filepath)[1]
-        
-        return self._match_filter(filename)
+        if hasattr(self, 'file_filter'):
+            if self.file_filter.search(filename):
+                return True
+            else:
+                return False
 
     def index(self, environ, start_response, template_name, content_type):
         # Return directory listing.

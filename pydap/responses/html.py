@@ -175,7 +175,7 @@ class HTMLResponse(BaseResponse):
             base = location[:location.rfind('/')]
             context = {
                 'environ': environ,
-                'root': construct_url(environ, with_query_string=False, with_path_info=False, script_name='').rstrip('/'),
+                'root': construct_url(environ, with_query_string=False, with_path_info=False).rstrip('/'),
                 'base': base,
                 'location': location,
                 'dataset': dataset,

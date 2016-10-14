@@ -29,12 +29,11 @@ DEFAULT_TEMPLATE = """<html xmlns="http://www.w3.org/1999/xhtml">
 
 class HelpResponse(BaseResponse):
 
-    def __init__(self, dataset=None, renderer_class=GenshiRenderer):
-        BaseResponse.__init__(self, dataset)
-        
-        self.renderer = renderer_class(
+    renderer = GenshiRenderer(
             options={}, loader=StringLoader( {'help.html': DEFAULT_TEMPLATE} ))
-        
+
+    def __init__(self, dataset=None):
+        BaseResponse.__init__(self, dataset)
         self.headers.extend([
                 ('Content-description', 'dods_help'),
                 ('Content-type', 'text/html'),

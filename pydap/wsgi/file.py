@@ -69,7 +69,8 @@ class FileServer(object):
                 # check that it is viewable according to the custom filter
                 elif self.filter_restrict and self._is_hidden(filepath, True):
                     return HTTPNotFound()(environ, start_response)
-                return FileApp(filepath)(environ, start_response)
+		    		     
+                return FileApp(filepath, content_encoding='')(environ, start_response)
             # it is a directory
             else:
                 # check that it is viewable according to the custom filter

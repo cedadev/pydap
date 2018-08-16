@@ -1,6 +1,8 @@
 recursive-include docs *
-include paver-minilib.zip 
-include setup.cfg
-include setup.py
-include pavement.py
-recursive-include pydap/wsgi/template *
+prune docs/_build
+recursive-include src/pydap/wsgi/templates *
+recursive-include src/pydap/responses/html/templates *
+recursive-include src/pydap/tests *.das *.dds *.dods
+include CONTRIBUTORS.md
+include README.md
+include NEWS.md

@@ -33,4 +33,10 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+<<<<<<< HEAD
 .settings
+=======
+
+# Vim
+*.swp
+>>>>>>> 3805fc299418e0b7180da1eb41626f3c846c5645
